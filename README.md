@@ -1,10 +1,10 @@
-# Obsidian Web Editor
+# fieldnote
 
 A static GitHub Pages-friendly markdown editor for encrypted standalone Obsidian notes stored in Supabase.
 
 ## Included features
 
-- Email/password Supabase sign-in
+- Email/password Supabase sign-in and optional self-service account creation
 - Second passphrase-derived AES-GCM encryption key held in memory only
 - Upload local `.md`, `.markdown`, and `.txt` files
 - Create, edit, rename, download, and delete notes
@@ -37,7 +37,7 @@ If you switch projects later, update the constants at the top of `app.js` and th
 1. Copy `index.html`, `styles.css`, and `app.js` into your GitHub Pages repository root.
 2. Commit and push.
 3. Enable GitHub Pages for that branch.
-4. Open the published URL and sign in with your Supabase account.
+4. Open the published URL and sign in with your Supabase account. If you have not created one yet, use the Create account button in the app.
 
 ## Notes
 

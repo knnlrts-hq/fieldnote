@@ -14,7 +14,13 @@ const MARKDOWN_MIME_TYPES = new Set(['text/markdown', 'text/plain']);
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
 const state = {
   encryptionKey: null,
@@ -36,6 +42,8 @@ const loginScreen = document.getElementById('login-screen');
 const appScreen = document.getElementById('app-screen');
 const loginForm = document.getElementById('login-form');
 const loginError = document.getElementById('login-error');
+const loginInfo = document.getElementById('login-info');
+const signUpBtn = document.getElementById('sign-up-btn');
 const signOutBtn = document.getElementById('sign-out-btn');
 const accountChip = document.getElementById('account-chip');
 
@@ -130,6 +138,26 @@ function showApp() {
 function setLoginError(message) {
   loginError.hidden = !message;
   loginError.textContent = message || '';
+  if (message) {
+    loginInfo.hidden = true;
+    loginInfo.textContent = '';
+  }
+}
+
+function setLoginInfo(message) {
+  loginInfo.hidden = !message;
+  loginInfo.textContent = message || '';
+  if (message) {
+    loginError.hidden = true;
+    loginError.textContent = '';
+  }
+}
+
+function clearLoginMessages() {
+  loginError.hidden = true;
+  loginError.textContent = '';
+  loginInfo.hidden = true;
+  loginInfo.textContent = '';
 }
 
 function setSaveState(message, kind = 'info', sticky = false) {
@@ -146,12 +174,65 @@ function setSaveState(message, kind = 'info', sticky = false) {
 }
 
 function setEditorEnabled(enabled) {
+  if (!state.editor) return;
   state.editor.setOption('readOnly', enabled ? false : 'nocursor');
   filenameInput.disabled = !enabled;
   saveBtn.disabled = !enabled || state.saveBusy;
   downloadBtn.disabled = !enabled;
   deleteBtn.disabled = !enabled;
   revertBtn.disabled = !enabled;
+}
+
+
+function formatAuthError(error, mode = 'signin') {
+  const message = String(error?.message || '').toLowerCase();
+
+  if (mode == 'signin') {
+    if (message.includes('invalid login credentials')) {
+      return 'Sign-in failed. Check your email and password. If this is your first time, use Create account first. If email confirmation is enabled in Supabase, confirm the account before signing in.';
+    }
+    if (message.includes('email not confirmed')) {
+      return 'Your account exists, but the email address still needs to be confirmed before you can sign in.';
+    }
+  }
+
+  if (mode == 'signup') {
+    if (message.includes('user already registered')) {
+      return 'That email is already registered. Sign in instead.';
+    }
+    if (message.includes('password should be at least')) {
+      return error.message;
+    }
+  }
+
+  return error?.message || (mode === 'signup' ? 'Account creation failed.' : 'Sign-in failed.');
+}
+
+async function restoreExistingSession(passphrase) {
+  const { data, error } = await sb.auth.getUser();
+  if (error) throw error;
+  if (!data?.user) {
+    throw new Error('No active session found. Sign in with email and password.');
+  }
+
+  state.encryptionKey = await deriveKey(passphrase);
+  state.currentUser = data.user;
+  accountChip.textContent = state.currentUser?.email || '';
+  showApp();
+  await loadNotes();
+  resetEditorToEmpty();
+  setSaveState('Session restored. Choose a note or upload one.');
+}
+
+async function completeAuthenticatedEntry(passphrase, user) {
+  state.encryptionKey = await deriveKey(passphrase);
+  state.currentUser = user;
+  accountChip.textContent = state.currentUser?.email || '';
+
+  showApp();
+  await loadNotes();
+  resetEditorToEmpty();
+  setSaveState('Signed in. Choose a note or upload one.');
 }
 
 function validateMarkdownFilename(value) {
@@ -1077,19 +1158,27 @@ function insertTemplate(type) {
 }
 
 async function signIn(email, password, passphrase) {
-  setLoginError('');
-  const { error } = await sb.auth.signInWithPassword({ email, password });
+  clearLoginMessages();
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error) throw error;
 
-  state.encryptionKey = await deriveKey(passphrase);
-  const { data: userData } = await sb.auth.getUser();
-  state.currentUser = userData.user;
-  accountChip.textContent = state.currentUser?.email || '';
+  await completeAuthenticatedEntry(passphrase, data.user);
+}
 
-  showApp();
-  await loadNotes();
-  resetEditorToEmpty();
-  setSaveState('Signed in. Choose a note or upload one.');
+async function signUp(email, password, passphrase) {
+  clearLoginMessages();
+
+  const { data, error } = await sb.auth.signUp({ email, password });
+  if (error) throw error;
+
+  if (data.session && data.user) {
+    await completeAuthenticatedEntry(passphrase, data.user);
+    setSaveState('Account created and signed in.');
+    return;
+  }
+
+  setLoginInfo('Account created. Check your email for the confirmation link, then sign in.');
 }
 
 async function signOut() {
@@ -1111,7 +1200,9 @@ async function signOut() {
   preview.innerHTML = '';
   state.editor.setValue('');
   showLogin();
-  setLoginError('');
+  clearLoginMessages();
+  document.getElementById('password').value = '';
+  document.getElementById('passphrase').value = '';
 }
 
 loginForm.addEventListener('submit', async (event) => {
@@ -1126,11 +1217,37 @@ loginForm.addEventListener('submit', async (event) => {
   }
 
   try {
-    await signIn(email, password, passphrase);
+    const { data: sessionData } = await sb.auth.getSession();
+    const activeEmail = sessionData.session?.user?.email || '';
+
+    if (sessionData.session && activeEmail && email && activeEmail.toLowerCase() === email.toLowerCase()) {
+      await restoreExistingSession(passphrase);
+    } else {
+      await signIn(email, password, passphrase);
+    }
     document.getElementById('passphrase').value = '';
   } catch (error) {
     console.error(error);
-    setLoginError(error.message || 'Sign-in failed.');
+    setLoginError(formatAuthError(error, 'signin'));
+  }
+});
+
+signUpBtn.addEventListener('click', async () => {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const passphrase = document.getElementById('passphrase').value;
+
+  if (!email || !password || !passphrase) {
+    setLoginError('Email, password, and encryption passphrase are required to create an account.');
+    return;
+  }
+
+  try {
+    await signUp(email, password, passphrase);
+    document.getElementById('passphrase').value = '';
+  } catch (error) {
+    console.error(error);
+    setLoginError(formatAuthError(error, 'signup'));
   }
 });
 
@@ -1199,9 +1316,21 @@ window.addEventListener('beforeunload', (event) => {
   event.returnValue = '';
 });
 
-showLogin();
-initEditor();
-updateDocStats();
-renderPreview();
-setEditorEnabled(false);
-renderHistory();
+(async () => {
+  showLogin();
+  initEditor();
+  updateDocStats();
+  renderPreview();
+  setEditorEnabled(false);
+  renderHistory();
+
+  try {
+    const { data } = await sb.auth.getSession();
+    if (data?.session?.user?.email) {
+      document.getElementById('email').value = data.session.user.email;
+      setLoginInfo('Existing session found. Enter your encryption passphrase and sign in to unlock your notes, or use the saved email and password to refresh the session.');
+    }
+  } catch (error) {
+    console.error(error);
+  }
+})();

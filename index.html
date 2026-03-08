@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Obsidian Web Editor</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src https://dbxmizntfrggqivkoibz.supabase.co; img-src 'self' data: blob: https:; font-src 'self' https://cdn.jsdelivr.net data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; worker-src blob:; child-src blob:;">
+  <title>fieldnote</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://dbxmizntfrggqivkoibz.supabase.co https://cdn.jsdelivr.net wss://dbxmizntfrggqivkoibz.supabase.co; img-src 'self' data: blob: https:; font-src 'self' https://cdn.jsdelivr.net data:; object-src 'none'; base-uri 'none'; form-action 'self'; worker-src 'self' blob:; child-src blob:;">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/selection/active-line.min.css">
@@ -14,9 +14,8 @@
   <div id="login-screen" class="login-shell">
     <section class="login-card">
       <div class="brand-lockup">
-        <div class="brand-badge">OWE</div>
         <div>
-          <h1>Obsidian Web Editor</h1>
+          <h1>fieldnote</h1>
           <p>Edit encrypted standalone markdown notes from any browser.</p>
         </div>
       </div>
@@ -37,9 +36,14 @@
           <input id="passphrase" name="passphrase" type="password" autocomplete="off" required placeholder="Needed to decrypt and save notes">
         </label>
 
-        <button class="btn btn-primary" type="submit">Sign in</button>
+        <div class="auth-actions">
+          <button class="btn btn-primary" type="submit">Sign in</button>
+          <button id="sign-up-btn" class="btn" type="button">Create account</button>
+        </div>
         <p class="helper-text">Your passphrase stays in memory only. Losing it means losing access to existing encrypted notes.</p>
+        <p class="helper-text">Use create account once if you have not added a Supabase user yet.</p>
         <p id="login-error" class="message error" hidden></p>
+        <p id="login-info" class="message success" hidden></p>
       </form>
     </section>
   </div>
@@ -47,7 +51,7 @@
   <div id="app-screen" class="app-shell" hidden>
     <header class="topbar">
       <div>
-        <h1>Obsidian Web Editor</h1>
+        <h1>fieldnote</h1>
         <p id="account-chip" class="subtle"></p>
       </div>
       <div class="topbar-actions">
@@ -166,6 +170,7 @@
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/xml/xml.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/meta.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/markdown/markdown.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/mode/overlay.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/gfm/gfm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/edit/closebrackets.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/selection/active-line.min.js"></script>
