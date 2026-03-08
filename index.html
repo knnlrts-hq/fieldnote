@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Obsidian Web Editor</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src https://dbxmizntfrggqivkoibz.supabase.co; img-src 'self' data: blob: https:; font-src 'self' https://cdn.jsdelivr.net data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; worker-src blob:; child-src blob:;">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/selection/active-line.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.35/dist/katex.min.css">
+</head>
+<body>
+  <div id="login-screen" class="login-shell">
+    <section class="login-card">
+      <div class="brand-lockup">
+        <div class="brand-badge">OWE</div>
+        <div>
+          <h1>Obsidian Web Editor</h1>
+          <p>Edit encrypted standalone markdown notes from any browser.</p>
+        </div>
+      </div>
+
+      <form id="login-form" class="stack" autocomplete="on">
+        <label class="field">
+          <span>Email</span>
+          <input id="email" name="email" type="email" autocomplete="email" required>
+        </label>
+
+        <label class="field">
+          <span>Password</span>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+        </label>
+
+        <label class="field">
+          <span>Encryption passphrase</span>
+          <input id="passphrase" name="passphrase" type="password" autocomplete="off" required placeholder="Needed to decrypt and save notes">
+        </label>
+
+        <button class="btn btn-primary" type="submit">Sign in</button>
+        <p class="helper-text">Your passphrase stays in memory only. Losing it means losing access to existing encrypted notes.</p>
+        <p id="login-error" class="message error" hidden></p>
+      </form>
+    </section>
+  </div>
+
+  <div id="app-screen" class="app-shell" hidden>
+    <header class="topbar">
+      <div>
+        <h1>Obsidian Web Editor</h1>
+        <p id="account-chip" class="subtle"></p>
+      </div>
+      <div class="topbar-actions">
+        <button id="save-btn" class="btn btn-primary" type="button" disabled>Save</button>
+        <button id="download-btn" class="btn" type="button" disabled>Download</button>
+        <button id="sign-out-btn" class="btn" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <main class="app-grid">
+      <aside class="sidebar left-sidebar">
+        <div class="sidebar-header">
+          <h2>Notes</h2>
+          <div class="sidebar-actions compact-actions">
+            <button id="new-note-btn" class="btn btn-primary" type="button">New</button>
+            <button id="upload-note-btn" class="btn" type="button">Upload</button>
+          </div>
+        </div>
+
+        <label class="field compact-field">
+          <span>Search</span>
+          <input id="note-search" type="search" placeholder="Filter notes by filename">
+        </label>
+
+        <input id="upload-input" type="file" hidden accept=".md,.markdown,.txt,text/markdown,text/plain">
+
+        <div id="note-list" class="note-list" aria-live="polite"></div>
+        <p id="notes-empty" class="empty-state" hidden>No markdown notes found yet.</p>
+        <p id="notes-hidden-info" class="helper-text muted" hidden></p>
+      </aside>
+
+      <section class="workspace">
+        <div class="workspace-toolbar">
+          <div class="filename-wrap">
+            <label class="field compact-field grow">
+              <span>Filename</span>
+              <input id="filename-input" type="text" placeholder="untitled.md" disabled>
+            </label>
+          </div>
+
+          <div class="compact-actions wrap-actions">
+            <button id="delete-btn" class="btn btn-danger" type="button" disabled>Delete</button>
+            <button id="revert-btn" class="btn" type="button" disabled>Revert</button>
+          </div>
+        </div>
+
+        <div class="editor-toolbar" aria-label="Formatting tools">
+          <button class="tool-btn" type="button" data-insert="bold" title="Bold">B</button>
+          <button class="tool-btn" type="button" data-insert="italic" title="Italic">I</button>
+          <button class="tool-btn" type="button" data-insert="link" title="Markdown link">Link</button>
+          <button class="tool-btn" type="button" data-insert="wiki" title="Obsidian wikilink">[[ ]]</button>
+          <button class="tool-btn" type="button" data-insert="task" title="Task list">☑</button>
+          <button class="tool-btn" type="button" data-insert="code" title="Code block">&lt;/&gt;</button>
+          <button class="tool-btn" type="button" data-insert="math" title="Display math">∑</button>
+          <button class="tool-btn" type="button" data-insert="callout" title="Callout">[!]</button>
+        </div>
+
+        <div class="pane-grid">
+          <section class="pane">
+            <div class="pane-header">
+              <h2>Editor</h2>
+              <p id="editor-meta" class="subtle"></p>
+            </div>
+            <textarea id="editor-textarea"></textarea>
+          </section>
+
+          <section class="pane preview-pane">
+            <div class="pane-header">
+              <h2>Preview</h2>
+              <p class="subtle">Live markdown rendering</p>
+            </div>
+            <div id="preview" class="preview markdown-body">
+              <div class="preview-placeholder">
+                <h3>No note selected</h3>
+                <p>Create a note, upload a markdown file, or choose one from the sidebar.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <footer class="statusbar">
+          <p id="save-state" class="subtle">Ready.</p>
+          <p id="doc-stats" class="subtle">0 words · 0 lines · 0 chars</p>
+        </footer>
+      </section>
+
+      <aside class="sidebar history-sidebar">
+        <div class="sidebar-header">
+          <h2>Revision history</h2>
+        </div>
+        <div id="history-list" class="history-list"></div>
+        <p id="history-empty" class="empty-state">Select a note to view revisions.</p>
+      </aside>
+    </main>
+  </div>
+
+  <div id="modal-backdrop" class="modal-backdrop" hidden>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="new-note-title">
+      <h2 id="new-note-title">Create a new note</h2>
+      <form id="new-note-form" class="stack">
+        <label class="field">
+          <span>Filename</span>
+          <input id="new-note-filename" type="text" placeholder="daily-note.md" required>
+        </label>
+        <div class="compact-actions">
+          <button class="btn btn-primary" type="submit">Create</button>
+          <button id="modal-cancel-btn" class="btn" type="button">Cancel</button>
+        </div>
+        <p id="new-note-error" class="message error" hidden></p>
+      </form>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/xml/xml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/meta.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/markdown/markdown.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/gfm/gfm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/edit/closebrackets.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/selection/active-line.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.1/dist/markdown-it.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-footnote@4.0.0/dist/markdown-it-footnote.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it-mark@4.0.0/dist/markdown-it-mark.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.3.2/dist/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.35/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.35/dist/contrib/auto-render.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
