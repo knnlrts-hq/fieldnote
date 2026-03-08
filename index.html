@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/lib/codemirror.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/selection/active-line.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.35/dist/katex.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css">
 </head>
 <body>
   <div id="login-screen" class="login-shell">
@@ -16,7 +17,6 @@
       <div class="brand-lockup">
         <div>
           <h1>fieldnote</h1>
-          <p>Edit encrypted standalone markdown notes from any browser.</p>
         </div>
       </div>
 
@@ -38,10 +38,8 @@
 
         <div class="auth-actions">
           <button class="btn btn-primary" type="submit">Sign in</button>
-          <button id="sign-up-btn" class="btn" type="button">Create account</button>
         </div>
         <p class="helper-text">Your passphrase stays in memory only. Losing it means losing access to existing encrypted notes.</p>
-        <p class="helper-text">Use create account once if you have not added a Supabase user yet.</p>
         <p id="login-error" class="message error" hidden></p>
         <p id="login-info" class="message success" hidden></p>
       </form>
@@ -50,25 +48,47 @@
 
   <div id="app-screen" class="app-shell" hidden>
     <header class="topbar">
-      <div>
-        <h1>fieldnote</h1>
-        <p id="account-chip" class="subtle"></p>
+      <div class="topbar-brand">
+        <div>
+          <h1>fieldnote</h1>
+          <p id="account-chip" class="subtle"></p>
+        </div>
       </div>
+
       <div class="topbar-actions">
+        <div class="view-switch" role="group" aria-label="Editor view mode">
+          <button id="editor-mode-btn" class="btn view-switch-btn is-active" type="button" aria-pressed="true">Editor</button>
+          <button id="preview-mode-btn" class="btn view-switch-btn" type="button" aria-pressed="false">Preview</button>
+        </div>
+        <button id="notes-toggle-btn" class="btn panel-toggle-btn" type="button" aria-expanded="false" aria-controls="notes-panel">
+          Notes
+          <span id="notes-count" class="count-chip">0</span>
+        </button>
+        <button id="history-toggle-btn" class="btn panel-toggle-btn" type="button" aria-expanded="false" aria-controls="history-panel">
+          Revisions
+          <span id="revisions-count" class="count-chip">0</span>
+        </button>
         <button id="save-btn" class="btn btn-primary" type="button" disabled>Save</button>
         <button id="download-btn" class="btn" type="button" disabled>Download</button>
         <button id="sign-out-btn" class="btn" type="button">Sign out</button>
       </div>
     </header>
 
-    <main class="app-grid">
-      <aside class="sidebar left-sidebar">
-        <div class="sidebar-header">
-          <h2>Notes</h2>
-          <div class="sidebar-actions compact-actions">
-            <button id="new-note-btn" class="btn btn-primary" type="button">New</button>
-            <button id="upload-note-btn" class="btn" type="button">Upload</button>
+    <main class="app-main">
+      <div id="panel-backdrop" class="panel-backdrop" hidden></div>
+
+      <aside id="notes-panel" class="side-panel side-panel-left" aria-hidden="true">
+        <div class="side-panel-header">
+          <div>
+            <h2>Notes</h2>
+            <p class="subtle">Browse, search, and load markdown files without giving up editor space.</p>
           </div>
+          <button id="notes-close-btn" class="btn icon-btn" type="button" aria-label="Close notes panel">✕</button>
+        </div>
+
+        <div class="side-panel-actions">
+          <button id="new-note-btn" class="btn btn-primary" type="button">New note</button>
+          <button id="upload-note-btn" class="btn" type="button">Upload</button>
         </div>
 
         <label class="field compact-field">
@@ -109,24 +129,24 @@
           <button class="tool-btn" type="button" data-insert="callout" title="Callout">[!]</button>
         </div>
 
-        <div class="pane-grid">
-          <section class="pane">
-            <div class="pane-header">
+        <div class="canvas-shell">
+          <section id="editor-view" class="canvas-view canvas-view-editor">
+            <div class="canvas-header">
               <h2>Editor</h2>
               <p id="editor-meta" class="subtle"></p>
             </div>
             <textarea id="editor-textarea"></textarea>
           </section>
 
-          <section class="pane preview-pane">
-            <div class="pane-header">
+          <section id="preview-view" class="canvas-view canvas-view-preview" hidden>
+            <div class="canvas-header">
               <h2>Preview</h2>
-              <p class="subtle">Live markdown rendering</p>
+              <p class="subtle">Rendered markdown with code highlighting, callouts, math, and wikilinks.</p>
             </div>
             <div id="preview" class="preview markdown-body">
               <div class="preview-placeholder">
                 <h3>No note selected</h3>
-                <p>Create a note, upload a markdown file, or choose one from the sidebar.</p>
+                <p>Create a note, upload a markdown file, or choose one from the notes panel.</p>
               </div>
             </div>
           </section>
@@ -138,10 +158,15 @@
         </footer>
       </section>
 
-      <aside class="sidebar history-sidebar">
-        <div class="sidebar-header">
-          <h2>Revision history</h2>
+      <aside id="history-panel" class="side-panel side-panel-right" aria-hidden="true">
+        <div class="side-panel-header">
+          <div>
+            <h2>Revision history</h2>
+            <p class="subtle">Restore or download earlier saves without permanently crowding the editor.</p>
+          </div>
+          <button id="history-close-btn" class="btn icon-btn" type="button" aria-label="Close revisions panel">✕</button>
         </div>
+
         <div id="history-list" class="history-list"></div>
         <p id="history-empty" class="empty-state">Select a note to view revisions.</p>
       </aside>
@@ -172,12 +197,25 @@
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/markdown/markdown.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/mode/overlay.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/gfm/gfm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/css/css.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/htmlmixed/htmlmixed.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/clike/clike.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/python/python.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/shell/shell.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/sql/sql.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/yaml/yaml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/go/go.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/rust/rust.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/dockerfile/dockerfile.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/mode/powershell/powershell.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/edit/closebrackets.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.21/addon/selection/active-line.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@14.1.1/dist/markdown-it.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/markdown-it-footnote@4.0.0/dist/markdown-it-footnote.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/markdown-it-mark@4.0.0/dist/markdown-it-mark.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-mark@4.0.0/dist/markdown-it-mark.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.3.2/dist/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/lib/highlight.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.35/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.35/dist/contrib/auto-render.min.js"></script>
   <script src="app.js"></script>

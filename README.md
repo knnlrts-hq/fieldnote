@@ -2,13 +2,22 @@
 
 A static GitHub Pages-friendly markdown editor for encrypted standalone Obsidian notes stored in Supabase.
 
+## UX refresh included here
+
+- Editor-first workspace that uses nearly the full viewport
+- Button-based Editor / Preview switching instead of a permanent split pane
+- Slide-over Notes and Revision History panels that stay collapsible and out of the way
+- Cleaner login screen with sign-in only
+- Better preview polish, including syntax-highlighted fenced code blocks
+- Improved markdown authoring for common fenced code languages in the editor
+
 ## Included features
 
-- Email/password Supabase sign-in and optional self-service account creation
+- Email/password Supabase sign-in
 - Second passphrase-derived AES-GCM encryption key held in memory only
 - Upload local `.md`, `.markdown`, and `.txt` files
 - Create, edit, rename, download, and delete notes
-- Live markdown preview
+- Markdown preview with syntax highlighting for fenced code blocks
 - Obsidian-style wikilinks (`[[Note]]`, `[[Note|Alias]]`)
 - Obsidian callouts (`> [!note]`, foldable `+`/`-` variants)
 - LaTeX rendering with KaTeX
@@ -19,8 +28,8 @@ A static GitHub Pages-friendly markdown editor for encrypted standalone Obsidian
 ## Files
 
 - `index.html` — page shell, CSP, CDN dependencies
-- `styles.css` — layout and preview styling
-- `app.js` — auth, encryption, editor, preview, storage, revisions
+- `styles.css` — layout, editor-first chrome, drawers, and preview styling
+- `app.js` — auth, encryption, editor, preview, storage, revisions, UI state
 
 ## Before deploying
 
@@ -37,7 +46,7 @@ If you switch projects later, update the constants at the top of `app.js` and th
 1. Copy `index.html`, `styles.css`, and `app.js` into your GitHub Pages repository root.
 2. Commit and push.
 3. Enable GitHub Pages for that branch.
-4. Open the published URL and sign in with your Supabase account. If you have not created one yet, use the Create account button in the app.
+4. Open the published URL and sign in with your Supabase account.
 
 ## Notes
 
@@ -45,3 +54,4 @@ If you switch projects later, update the constants at the top of `app.js` and th
 - Losing the passphrase means you cannot decrypt existing notes.
 - Revisions are stored as separate encrypted blobs in Supabase Storage.
 - The app filters out non-markdown records already present in `blob_index`.
+- The UI no longer exposes self-service sign-up; create users in Supabase Auth if needed.

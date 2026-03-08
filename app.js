@@ -36,6 +36,11 @@ const state = {
   saveBusy: false,
   previewTimer: null,
   statusTimer: null,
+  ui: {
+    activeView: 'editor',
+    notesOpen: false,
+    historyOpen: false,
+  },
 };
 
 const loginScreen = document.getElementById('login-screen');
@@ -46,6 +51,13 @@ const loginInfo = document.getElementById('login-info');
 const signUpBtn = document.getElementById('sign-up-btn');
 const signOutBtn = document.getElementById('sign-out-btn');
 const accountChip = document.getElementById('account-chip');
+
+const editorModeBtn = document.getElementById('editor-mode-btn');
+const previewModeBtn = document.getElementById('preview-mode-btn');
+const notesToggleBtn = document.getElementById('notes-toggle-btn');
+const historyToggleBtn = document.getElementById('history-toggle-btn');
+const notesCount = document.getElementById('notes-count');
+const revisionsCount = document.getElementById('revisions-count');
 
 const saveBtn = document.getElementById('save-btn');
 const downloadBtn = document.getElementById('download-btn');
@@ -59,8 +71,17 @@ const noteSearch = document.getElementById('note-search');
 const noteList = document.getElementById('note-list');
 const notesEmpty = document.getElementById('notes-empty');
 const notesHiddenInfo = document.getElementById('notes-hidden-info');
+const notesPanel = document.getElementById('notes-panel');
+const notesCloseBtn = document.getElementById('notes-close-btn');
+
 const historyList = document.getElementById('history-list');
 const historyEmpty = document.getElementById('history-empty');
+const historyPanel = document.getElementById('history-panel');
+const historyCloseBtn = document.getElementById('history-close-btn');
+
+const panelBackdrop = document.getElementById('panel-backdrop');
+const editorView = document.getElementById('editor-view');
+const previewView = document.getElementById('preview-view');
 const preview = document.getElementById('preview');
 const saveState = document.getElementById('save-state');
 const docStats = document.getElementById('doc-stats');
@@ -79,6 +100,16 @@ function initMarkdownEngine() {
     linkify: true,
     typographer: false,
     breaks: false,
+    highlight(code, language) {
+      if (window.hljs) {
+        const lang = (language || '').trim().toLowerCase();
+        if (lang && window.hljs.getLanguage(lang)) {
+          return `<pre><code class="hljs language-${escapeHtml(lang)}">${window.hljs.highlight(code, { language: lang, ignoreIllegals: true }).value}</code></pre>`;
+        }
+        return `<pre><code class="hljs">${window.hljs.highlightAuto(code).value}</code></pre>`;
+      }
+      return `<pre><code>${escapeHtml(code)}</code></pre>`;
+    },
   });
 
   if (window.markdownitFootnote) {
@@ -94,7 +125,12 @@ const markdownEngine = initMarkdownEngine();
 
 function initEditor() {
   state.editor = window.CodeMirror.fromTextArea(editorTextarea, {
-    mode: 'gfm',
+    mode: {
+      name: 'gfm',
+      fencedCodeBlocks: true,
+      highlightFormatting: true,
+      taskLists: true,
+    },
     lineNumbers: true,
     lineWrapping: true,
     autofocus: false,
@@ -112,6 +148,8 @@ function initEditor() {
       'Shift-Tab': 'indentLess',
       'Cmd-S': () => saveCurrentNote(),
       'Ctrl-S': () => saveCurrentNote(),
+      'Cmd-Shift-P': () => setActiveView(state.ui.activeView === 'editor' ? 'preview' : 'editor'),
+      'Ctrl-Shift-P': () => setActiveView(state.ui.activeView === 'editor' ? 'preview' : 'editor'),
     },
   });
 
@@ -125,7 +163,86 @@ function initEditor() {
   state.editor.refresh();
 }
 
+
+function setActiveView(view) {
+  const nextView = view === 'preview' ? 'preview' : 'editor';
+  state.ui.activeView = nextView;
+
+  const showPreview = nextView === 'preview';
+  editorView.hidden = showPreview;
+  previewView.hidden = !showPreview;
+
+  editorModeBtn.classList.toggle('is-active', !showPreview);
+  previewModeBtn.classList.toggle('is-active', showPreview);
+  editorModeBtn.setAttribute('aria-pressed', String(!showPreview));
+  previewModeBtn.setAttribute('aria-pressed', String(showPreview));
+
+  if (showPreview) {
+    renderPreview();
+  } else {
+    requestAnimationFrame(() => state.editor?.refresh());
+  }
+}
+
+function updatePanelUI() {
+  const notesOpen = state.ui.notesOpen;
+  const historyOpen = state.ui.historyOpen;
+  const anyOpen = notesOpen || historyOpen;
+
+  notesPanel.classList.toggle('open', notesOpen);
+  historyPanel.classList.toggle('open', historyOpen);
+
+  notesPanel.setAttribute('aria-hidden', String(!notesOpen));
+  historyPanel.setAttribute('aria-hidden', String(!historyOpen));
+
+  notesToggleBtn.classList.toggle('is-active', notesOpen);
+  historyToggleBtn.classList.toggle('is-active', historyOpen);
+
+  notesToggleBtn.setAttribute('aria-expanded', String(notesOpen));
+  historyToggleBtn.setAttribute('aria-expanded', String(historyOpen));
+
+  panelBackdrop.hidden = !anyOpen;
+  document.body.classList.toggle('panel-open', anyOpen);
+}
+
+function setPanelState(panelName, isOpen) {
+  if (panelName === 'notes') {
+    state.ui.notesOpen = Boolean(isOpen);
+    if (isOpen) state.ui.historyOpen = false;
+  }
+
+  if (panelName === 'history') {
+    state.ui.historyOpen = Boolean(isOpen);
+    if (isOpen) state.ui.notesOpen = false;
+  }
+
+  updatePanelUI();
+}
+
+function closePanels() {
+  state.ui.notesOpen = false;
+  state.ui.historyOpen = false;
+  updatePanelUI();
+}
+
+function togglePanel(panelName) {
+  if (panelName === 'notes') {
+    setPanelState('notes', !state.ui.notesOpen);
+    return;
+  }
+
+  if (panelName === 'history') {
+    setPanelState('history', !state.ui.historyOpen);
+  }
+}
+
+function updatePanelCounts() {
+  notesCount.textContent = String(state.notes.length);
+  revisionsCount.textContent = String(state.revisions.length);
+}
 function showLogin() {
+  closePanels();
+  setActiveView('editor');
   loginScreen.hidden = false;
   appScreen.hidden = true;
 }
@@ -133,6 +250,7 @@ function showLogin() {
 function showApp() {
   loginScreen.hidden = true;
   appScreen.hidden = false;
+  requestAnimationFrame(() => state.editor?.refresh());
 }
 
 function setLoginError(message) {
@@ -189,7 +307,7 @@ function formatAuthError(error, mode = 'signin') {
 
   if (mode == 'signin') {
     if (message.includes('invalid login credentials')) {
-      return 'Sign-in failed. Check your email and password. If this is your first time, use Create account first. If email confirmation is enabled in Supabase, confirm the account before signing in.';
+      return 'Sign-in failed. Check your email and password. If email confirmation is enabled in Supabase, confirm the account before signing in.';
     }
     if (message.includes('email not confirmed')) {
       return 'Your account exists, but the email address still needs to be confirmed before you can sign in.';
@@ -598,7 +716,6 @@ function renderPreview() {
   enhanceCallouts(preview);
   enhanceTaskLists(preview);
   wireWikiLinks(preview);
-
   if (window.renderMathInElement) {
     window.renderMathInElement(preview, {
       throwOnError: false,
@@ -623,6 +740,7 @@ function renderNotesList() {
     note.filename.toLowerCase().includes(state.searchTerm.toLowerCase())
   );
 
+  updatePanelCounts();
   noteList.textContent = '';
   notesEmpty.hidden = visibleNotes.length > 0;
 
@@ -641,6 +759,7 @@ function renderNotesList() {
 }
 
 function renderHistory() {
+  updatePanelCounts();
   historyList.textContent = '';
 
   if (!state.currentNote || state.revisions.length === 0) {
@@ -682,6 +801,7 @@ function renderHistory() {
 }
 
 function resetEditorToEmpty() {
+  setActiveView('editor');
   setCurrentNote(null);
   state.revisions = [];
   state.lastSavedContent = '';
@@ -788,6 +908,7 @@ async function openNote(noteId, options = {}) {
       });
     }
 
+    closePanels();
     setSaveState(`Opened ${note.filename}.`);
   } catch (error) {
     console.error(error);
@@ -1083,6 +1204,7 @@ function createNewNote(filename) {
   renderPreview();
   renderHistory();
   syncDirtyState();
+  closePanels();
   setSaveState('New note ready.');
   filenameInput.focus();
 }
@@ -1232,26 +1354,35 @@ loginForm.addEventListener('submit', async (event) => {
   }
 });
 
-signUpBtn.addEventListener('click', async () => {
-  const email = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value;
-  const passphrase = document.getElementById('passphrase').value;
+if (signUpBtn) {
+  signUpBtn.addEventListener('click', async () => {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const passphrase = document.getElementById('passphrase').value;
 
-  if (!email || !password || !passphrase) {
-    setLoginError('Email, password, and encryption passphrase are required to create an account.');
-    return;
-  }
+    if (!email || !password || !passphrase) {
+      setLoginError('Email, password, and encryption passphrase are required to create an account.');
+      return;
+    }
 
-  try {
-    await signUp(email, password, passphrase);
-    document.getElementById('passphrase').value = '';
-  } catch (error) {
-    console.error(error);
-    setLoginError(formatAuthError(error, 'signup'));
-  }
-});
+    try {
+      await signUp(email, password, passphrase);
+      document.getElementById('passphrase').value = '';
+    } catch (error) {
+      console.error(error);
+      setLoginError(formatAuthError(error, 'signup'));
+    }
+  });
+}
 
 signOutBtn.addEventListener('click', signOut);
+editorModeBtn.addEventListener('click', () => setActiveView('editor'));
+previewModeBtn.addEventListener('click', () => setActiveView('preview'));
+notesToggleBtn.addEventListener('click', () => togglePanel('notes'));
+historyToggleBtn.addEventListener('click', () => togglePanel('history'));
+notesCloseBtn.addEventListener('click', closePanels);
+historyCloseBtn.addEventListener('click', closePanels);
+panelBackdrop.addEventListener('click', closePanels);
 
 saveBtn.addEventListener('click', saveCurrentNote);
 downloadBtn.addEventListener('click', downloadCurrentNote);
@@ -1305,8 +1436,20 @@ document.addEventListener('keydown', (event) => {
     saveCurrentNote();
   }
 
-  if (event.key === 'Escape' && !modalBackdrop.hidden) {
-    closeNewNoteModal();
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'p') {
+    event.preventDefault();
+    setActiveView(state.ui.activeView === 'editor' ? 'preview' : 'editor');
+  }
+
+  if (event.key === 'Escape') {
+    if (!modalBackdrop.hidden) {
+      closeNewNoteModal();
+      return;
+    }
+
+    if (state.ui.notesOpen || state.ui.historyOpen) {
+      closePanels();
+    }
   }
 });
 
@@ -1316,9 +1459,15 @@ window.addEventListener('beforeunload', (event) => {
   event.returnValue = '';
 });
 
+window.addEventListener('resize', () => {
+  requestAnimationFrame(() => state.editor?.refresh());
+});
+
 (async () => {
   showLogin();
   initEditor();
+  setActiveView('editor');
+  updatePanelUI();
   updateDocStats();
   renderPreview();
   setEditorEnabled(false);
@@ -1328,7 +1477,7 @@ window.addEventListener('beforeunload', (event) => {
     const { data } = await sb.auth.getSession();
     if (data?.session?.user?.email) {
       document.getElementById('email').value = data.session.user.email;
-      setLoginInfo('Existing session found. Enter your encryption passphrase and sign in to unlock your notes, or use the saved email and password to refresh the session.');
+      setLoginInfo('Existing session found. Enter your encryption passphrase and sign in to unlock your notes.');
     }
   } catch (error) {
     console.error(error);
