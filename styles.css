@@ -376,19 +376,19 @@ button {
 }
 
 .panel-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.28);
   backdrop-filter: blur(4px);
-  z-index: 10;
+  z-index: 30;
 }
 
 .side-panel {
-  position: absolute;
-  top: 1rem;
+  position: fixed;
+  top: calc(var(--topbar-height) + 1rem);
   bottom: 1rem;
   width: var(--panel-width);
-  z-index: 20;
+  z-index: 35;
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 0.9rem;
@@ -426,6 +426,7 @@ button {
   min-height: 0;
   display: grid;
   gap: 0.6rem;
+  align-content: start;
 }
 
 .note-item,
@@ -774,7 +775,7 @@ button {
   }
 
   .side-panel {
-    top: 0.7rem;
+    top: calc(var(--topbar-height) + 0.7rem);
     bottom: 0.7rem;
   }
 
